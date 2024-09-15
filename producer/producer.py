@@ -72,5 +72,5 @@ async def run_producers(num_producers):
     )
 
 if __name__ == "__main__":
-    num_producers = 1  # 这里可以设置生产者的数量
+    num_producers = 5  # 这里可以设置生产者的数量
     asyncio.run(run_producers(num_producers))

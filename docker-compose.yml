@@ -12,7 +12,7 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
-      interval: 5s
+      interval: 10s
       timeout: 2s
       retries: 3
     deploy:
@@ -30,24 +30,22 @@ services:
     command: >
       sh -c "rabbitmq-plugins enable rabbitmq_prometheus && rabbitmq-server"
 
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  # prometheus:
+  #   image: prom/prometheus
+  #   container_name: prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
 
-  grafana:
-    image: grafana/grafana
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+  # grafana:
+  #   image: grafana/grafana
+  #   container_name: grafana
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
 
-# volumes:
-#   rabbitmq_data:
 
   producer:
     image: python:3.9-slim
@@ -104,3 +102,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  rabbitmq_data:
