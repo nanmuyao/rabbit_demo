@@ -1,0 +1,106 @@
+version: '3.8'
+services:
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: my-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+      - "9419:9419"  # Prometheus metrics port
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: '512M'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    command: >
+      sh -c "rabbitmq-plugins enable rabbitmq_prometheus && rabbitmq-server"
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+
+# volumes:
+#   rabbitmq_data:
+
+  producer:
+    image: python:3.9-slim
+    container_name: producer
+    volumes:
+      - ./producer:/app
+    working_dir: /app
+    command: >
+      sh -c "pip install -r requirements.txt && python -u producer.py"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: '256M'
+        # reservations:
+        #   generic_resources:
+        #     - discrete_resource_spec:
+        #         kind: disk
+        #         value: 500M  # 设置磁盘大小为500M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  consumer:
+    image: python:3.9-slim
+    container_name: consumer
+    volumes:
+      - ./consumer:/app
+    working_dir: /app
+    command: >
+      sh -c "pip install -r requirements.txt && python -u consumer.py"
+    depends_on:
+      producer:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: '256M'
+        # reservations:
+        #   generic_resources:
+        #     - discrete_resource_spec:
+        #         kind: disk
+        #         value: 500M  # 设置磁盘大小为500M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
