@@ -8,80 +8,70 @@ logging.basicConfig(
 )
 
 
-async def handle_producer(producer_id, connection, channel):
-    logging.info(f"Producer {producer_id} declaring queue with priority...")
-    await channel.declare_queue("priority_queue", arguments={"x-max-priority": 10})
-    logging.info(f"Producer {producer_id} queue declared")
-
-    async def produce_high_priority_messages():
-        while True:
-            high_priority_message = (
-                f"High Priority Message from producer {producer_id}!"
-            )
-            logging.info(f"Producer {producer_id} publishing high priority message...")
-            await channel.default_exchange.publish(
-                aio_pika.Message(body=high_priority_message.encode(), priority=10),
-                routing_key="priority_queue",
-            )
-            logging.info(
-                f"Producer {producer_id} sent '{high_priority_message}' with priority 10"
-            )
-            await asyncio.sleep(2)
-
-    if producer_id == 5:
-        asyncio.create_task(produce_high_priority_messages())
-    else:
-        try:
-            await produce_messages(producer_id, channel)
-        except asyncio.CancelledError:
-            logging.info(f"Producer {producer_id} stopping...")
-        finally:
-            await connection.close()
-            logging.info(f"Producer {producer_id} connection closed.")
-
-
-async def produce_messages(producer_id, channel):
-    while True:
-        message = f"Hello Priority Queue from producer {producer_id}!"
-        logging.info(f"Producer {producer_id} publishing message...")
-        await channel.default_exchange.publish(
-            aio_pika.Message(
-                body=message.encode(), priority=5 if producer_id != 5 else 10
-            ),
-            routing_key="priority_queue",
-        )
-        logging.info(
-            f"Producer {producer_id} sent '{message}' with priority {5 if producer_id != 5 else 10}"
-        )
-
-        # Get the length of the queue
-        queue = await channel.declare_queue("priority_queue", passive=True)
-        queue_length = queue.declaration_result.message_count
-        logging.info(f"Queue length: {queue_length}")
-
-        # Sleep for 3 seconds if queue_length > 10, otherwise sleep for 1 second
-        if queue_length > 10:
-            await asyncio.sleep(15)
-        else:
-            await asyncio.sleep(0.0001)
-
-
 async def main(producer_id):
     logging.info(f"Starting producer {producer_id}...")
 
     try:
-        await connect_and_handle_producer(producer_id)
+        logging.info(f"Producer {producer_id} connecting to RabbitMQ...")
+        connection = await aio_pika.connect_robust("amqp://rabbitmq/")
+        logging.info(f"Producer {producer_id} connected to RabbitMQ")
+        channel = await connection.channel()
+
+        logging.info(f"Producer {producer_id} declaring queue with priority...")
+        await channel.declare_queue("priority_queue", arguments={"x-max-priority": 10})
+        logging.info(f"Producer {producer_id} queue declared")
+
+        async def produce_high_priority_messages():
+            while True:
+                high_priority_message = f"High Priority ================== Message from producer {producer_id}!"
+                logging.info(
+                    f"Producer {producer_id} publishing high priority message..."
+                )
+                await channel.default_exchange.publish(
+                    aio_pika.Message(body=high_priority_message.encode(), priority=10),
+                    routing_key="priority_queue",
+                )
+                logging.info(
+                    f"Producer {producer_id} sent '{high_priority_message}' with priority 10"
+                )
+                await asyncio.sleep(2)
+
+        if producer_id == 5:
+            asyncio.create_task(produce_high_priority_messages())
+
+        else:
+            try:
+                while True:
+                    message = f"Hello Priority Queue from producer {producer_id}!"
+                    logging.info(f"Producer {producer_id} publishing message...")
+                    await channel.default_exchange.publish(
+                        aio_pika.Message(
+                            body=message.encode(),
+                            priority=5 if producer_id != 5 else 10,
+                        ),
+                        routing_key="priority_queue",
+                    )
+                    logging.info(
+                        f"Producer {producer_id} sent '{message}' with priority {5 if producer_id != 5 else 10}"
+                    )
+
+                    # Get the length of the queue
+                    queue = await channel.declare_queue("priority_queue", passive=True)
+                    queue_length = queue.declaration_result.message_count
+                    logging.info(f"Queue length: {queue_length}")
+
+                    # Sleep for 3 seconds if queue_length > 10, otherwise sleep for 1 second
+                    if queue_length > 10:
+                        await asyncio.sleep(2)
+                    else:
+                        await asyncio.sleep(0.0001)
+            except asyncio.CancelledError:
+                logging.info(f"Producer {producer_id} stopping...")
+            finally:
+                await connection.close()
+                logging.info(f"Producer {producer_id} connection closed.")
     except Exception as e:
         logging.error(f"Producer {producer_id} error: {e}")
-
-
-async def connect_and_handle_producer(producer_id):
-    logging.info(f"Producer {producer_id} connecting to RabbitMQ...")
-    connection = await aio_pika.connect_robust("amqp://rabbitmq/")
-    logging.info(f"Producer {producer_id} connected to RabbitMQ")
-    channel = await connection.channel()
-
-    await handle_producer(producer_id, connection, channel)
 
 
 async def run_producers(num_producers):

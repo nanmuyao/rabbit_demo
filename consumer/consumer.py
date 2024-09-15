@@ -12,6 +12,9 @@ async def callback(message: aio_pika.IncomingMessage):
     async with message.process():
         logging.info(f"Received {message.body} with priority {message.priority}")
         await asyncio.sleep(1)  # 添加延迟，单位为秒
+        # await message.ack()
+        # await message.nack(requeue=True)  # 显式拒绝消息并重新放回队列
+        logging.info("Message not acknowledged")
 
 
 async def main():
@@ -23,7 +26,7 @@ async def main():
         "priority_queue", arguments={"x-max-priority": 10}
     )
 
-    await queue.consume(callback)
+    await queue.consume(callback, no_ack=False)
 
     print("Waiting for messages. To exit press CTRL+C")
     try:
